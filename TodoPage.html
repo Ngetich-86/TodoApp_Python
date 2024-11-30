@@ -3,68 +3,148 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Distributed To-Do List Manager</title>
-    <link rel="stylesheet" href="./TodoPageStyles.css">
+    <title>Todo App Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        input[type="text"], input[type="password"], button {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #taskSection {
+            display: none;
+            margin-top: 20px;
+        }
+        #taskList {
+            margin-top: 10px;
+            list-style: none;
+            padding: 0;
+        }
+        #taskList li {
+            padding: 8px;
+            margin: 5px 0;
+            background-color: #f1f1f1;
+            border-radius: 4px;
+        }
+    </style>
 </head>
 <body>
-    <h1>Distributed To-Do List Manager</h1>
-    <form id="todo-form">
-        <label for="task">Task:</label>
-        <input type="text" id="task" name="task" required>
-        <button type="submit">Add Task</button>
-    </form>
-    
-    <h2>Tasks:</h2>
-    <ul id="task-list"></ul>
+    <div class="container">
+        <h2>Todo App</h2>
+        <div id="loginSection">
+            <h3>Login</h3>
+            <input type="text" id="username" placeholder="Enter Username">
+            <input type="password" id="password" placeholder="Enter Password">
+            <button id="loginBtn">Login</button>
+        </div>
+        <div id="taskSection">
+            <h3>Your Tasks</h3>
+            <ul id="taskList"></ul>
+            <input type="text" id="newTask" placeholder="Add a new task">
+            <button id="addTaskBtn">Add Task</button>
+        </div>
+    </div>
 
     <script>
-        // Base URL of the server
-        const serverUrl = "http://localhost:5000"; // Update this to match your server address
+        const serverHost = "ws://localhost:5000"; // Change to your server WebSocket URL
+        const socket = new WebSocket(serverHost);
 
-        // Fetch and display tasks
-        async function fetchTasks() {
-            try {
-                const response = await fetch(`${serverUrl}/tasks`);
-                const tasks = await response.json();
-                const taskList = document.getElementById('task-list');
-                taskList.innerHTML = ''; // Clear existing tasks
-                tasks.forEach(task => {
-                    const li = document.createElement('li');
-                    li.textContent = task;
-                    taskList.appendChild(li);
-                });
-            } catch (error) {
-                console.error('Error fetching tasks:', error);
-            }
-        }
+        // DOM elements
+        const loginSection = document.getElementById("loginSection");
+        const taskSection = document.getElementById("taskSection");
+        const usernameInput = document.getElementById("username");
+        const passwordInput = document.getElementById("password");
+        const loginBtn = document.getElementById("loginBtn");
+        const taskList = document.getElementById("taskList");
+        const newTaskInput = document.getElementById("newTask");
+        const addTaskBtn = document.getElementById("addTaskBtn");
 
-        // Add task
-        document.getElementById('todo-form').addEventListener('submit', async (event) => {
-            event.preventDefault(); // Prevent form from reloading the page
-            const taskInput = document.getElementById('task');
-            const task = taskInput.value;
+        // Login Button Click Event
+        loginBtn.addEventListener("click", () => {
+            const username = usernameInput.value;
+            const password = passwordInput.value;
 
-            try {
-                const response = await fetch(`${serverUrl}/add-task`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ task })
-                });
-                if (response.ok) {
-                    fetchTasks(); // Refresh the task list
-                    taskInput.value = ''; // Clear the input
-                } else {
-                    console.error('Failed to add task');
-                }
-            } catch (error) {
-                console.error('Error adding task:', error);
+            // Send login data to the server
+            if (username && password) {
+                const loginData = { action: "login", username, password };
+                socket.send(JSON.stringify(loginData));
             }
         });
 
-        // Load tasks on page load
-        fetchTasks();
+        // Add Task Button Click Event
+        addTaskBtn.addEventListener("click", () => {
+            const taskContent = newTaskInput.value;
+            if (taskContent) {
+                const taskData = { action: "addTask", task: taskContent };
+                socket.send(JSON.stringify(taskData));
+                newTaskInput.value = ""; // Clear input field
+            }
+        });
+
+        // Handle WebSocket messages from server
+        socket.onopen = () => {
+            console.log("Connected to the server");
+        };
+
+        socket.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+
+            if (message.action === "loginSuccess") {
+                loginSection.style.display = "none"; // Hide login form
+                taskSection.style.display = "block"; // Show task list
+            } else if (message.action === "invalidCredentials") {
+                alert("Invalid credentials. Please try again.");
+            } else if (message.action === "taskList") {
+                // Display task list from the server
+                taskList.innerHTML = ""; // Clear the current task list
+                message.tasks.forEach((task, index) => {
+                    const li = document.createElement("li");
+                    li.textContent = task;
+                    taskList.appendChild(li);
+                });
+            } else if (message.action === "taskAdded") {
+                // Update task list after adding a new task
+                const li = document.createElement("li");
+                li.textContent = message.task;
+                taskList.appendChild(li);
+            }
+        };
+
+        socket.onerror = (error) => {
+            console.error("WebSocket error:", error);
+        };
+
+        socket.onclose = () => {
+            console.log("Disconnected from the server");
+        };
     </script>
 </body>
 </html>
