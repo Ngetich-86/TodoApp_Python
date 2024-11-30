@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Distributed To-Do List Manager</title>
+    <link rel="stylesheet" href="./TodoPageStyles.css">
+</head>
+<body>
+    <h1>Distributed To-Do List Manager</h1>
+    <form id="todo-form">
+        <label for="task">Task:</label>
+        <input type="text" id="task" name="task" required>
+        <button type="submit">Add Task</button>
+    </form>
+    
+    <h2>Tasks:</h2>
+    <ul id="task-list"></ul>
+
+    <script>
+        // Base URL of the server
+        const serverUrl = "http://localhost:5000"; // Update this to match your server address
+
+        // Fetch and display tasks
+        async function fetchTasks() {
+            try {
+                const response = await fetch(`${serverUrl}/tasks`);
+                const tasks = await response.json();
+                const taskList = document.getElementById('task-list');
+                taskList.innerHTML = ''; // Clear existing tasks
+                tasks.forEach(task => {
+                    const li = document.createElement('li');
+                    li.textContent = task;
+                    taskList.appendChild(li);
+                });
+            } catch (error) {
+                console.error('Error fetching tasks:', error);
+            }
+        }
+
+        // Add task
+        document.getElementById('todo-form').addEventListener('submit', async (event) => {
+            event.preventDefault(); // Prevent form from reloading the page
+            const taskInput = document.getElementById('task');
+            const task = taskInput.value;
+
+            try {
+                const response = await fetch(`${serverUrl}/add-task`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ task })
+                });
+                if (response.ok) {
+                    fetchTasks(); // Refresh the task list
+                    taskInput.value = ''; // Clear the input
+                } else {
+                    console.error('Failed to add task');
+                }
+            } catch (error) {
+                console.error('Error adding task:', error);
+            }
+        });
+
+        // Load tasks on page load
+        fetchTasks();
+    </script>
+</body>
+</html>
